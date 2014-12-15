@@ -1,0 +1,56 @@
+-- 
+-- Glyn Astill 21/04/2012
+-- Functions to assist unnesting multidimensional arrays in PostgreSQL 9.0 and earlier
+--
+
+-- Some similar functions for Pg 9.1+ only can be found here
+-- https://wiki.postgresql.org/wiki/Unnest_multidimensional_array
+-- https://wiki.postgresql.org/wiki/Multidimensional_Array_Mapping
+
+
+-- Given a 2 dimensional array will unnest the element at the supplied
+-- index in the second dimension.
+-- Pg 8.0+
+CREATE OR REPLACE FUNCTION public.unnest_element(anyarray, integer)
+RETURNS SETOF anyelement
+AS $BODY$
+BEGIN
+	RETURN QUERY SELECT $1[i][$2]
+	FROM generate_series(array_lower($1,1), array_upper($1,1)) i;
+END;
+$BODY$
+LANGUAGE plpgsql IMMUTABLE;
+
+--
+
+-- Given a 2 dimensional array will unnest the first dimension
+-- returning the a set of one dimensional array.
+-- Pg 8.4+
+CREATE OR REPLACE FUNCTION public.unnest_first(anyarray)
+RETURNS SETOF anyarray
+AS $BODY$
+BEGIN
+	RETURN QUERY 
+	SELECT (SELECT array_agg($1[i][i2])
+		FROM generate_series(array_lower($1,2), array_upper($1,2)) i2)
+	FROM generate_series(array_lower($1,1), array_upper($1,1)) i;
+END;
+$BODY$
+LANGUAGE plpgsql IMMUTABLE;
+
+
+-- E.g.
+-- 
+-- TEST=# select unnest_element(ARRAY[ARRAY[1,2,3],ARRAY[4,5,6]],3);
+--  unnest_element
+-- ----------------
+--               3
+--               6
+-- (2 rows)
+-- 
+-- TEST=# select unnest_first(ARRAY[ARRAY[1,2,3],ARRAY[4,5,6]]);
+--  unnest_dimension
+-- ------------------
+--  {1,2,3}
+--  {4,5,6}
+-- (2 rows)
